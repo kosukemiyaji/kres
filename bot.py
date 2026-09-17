@@ -31,6 +31,33 @@ COGS = [
 ]
 
 
+async def handle_health_check(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    """Render のヘルスチェックと外部監視用の最小 HTTP エンドポイント。"""
+    try:
+        await reader.readuntil(b"\r\n\r\n")
+    except (asyncio.IncompleteReadError, asyncio.LimitOverrunError):
+        pass
+
+    writer.write(
+        b"HTTP/1.1 200 OK\r\n"
+        b"Content-Type: text/plain; charset=utf-8\r\n"
+        b"Content-Length: 2\r\n"
+        b"Connection: close\r\n\r\n"
+        b"OK"
+    )
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+
+
+async def start_health_server() -> asyncio.AbstractServer:
+    """Web Service として認識させるため、PORT でヘルスチェックを受け付ける。"""
+    port = int(os.environ.get("PORT", "10000"))
+    server = await asyncio.start_server(handle_health_check, host="0.0.0.0", port=port)
+    logging.info("ヘルスチェックサーバーをポート %s で開始しました", port)
+    return server
+
+
 class EconoBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=INTENTS)
@@ -50,14 +77,19 @@ class EconoBot(commands.Bot):
 
 async def main():
     bot = EconoBot()
+    health_server = await start_health_server()
 
     @bot.event
     async def on_ready():
         print(f"ログイン完了: {bot.user} (ID: {bot.user.id})")
 
     token = os.environ["DISCORD_BOT_TOKEN"]
-    async with bot:
-        await bot.start(token)
+    try:
+        async with bot:
+            await bot.start(token)
+    finally:
+        health_server.close()
+        await health_server.wait_closed()
 
 
 if __name__ == "__main__":

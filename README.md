@@ -2,17 +2,18 @@
 
 ## Render へのデプロイ
 
-この Bot は HTTP サーバーではないため、Render では **Background Worker** として動かします。
-リポジトリ直下の `render.yaml` を使って Blueprint を作成すれば、起動コマンドと SQLite の永続ディスクが自動設定されます。
+このリポジトリの `render.yaml` は、無料の **Web Service** として動作します。Bot 本体に `/health` エンドポイントを追加しているため、Render のヘルスチェックと外部監視のリクエストを受けられます。
 
 1. このフォルダを GitHub リポジトリへ push する（`.env` は絶対に push しない）。
 2. Render Dashboard で **New → Blueprint** を選び、対象リポジトリを選択する。
 3. `DISCORD_BOT_TOKEN` の入力を求められたら、Discord Developer Portal で発行した Bot Token を入力する。
 4. 作成・デプロイ後、Logs に `ログイン完了:` が表示されれば完了。
 
-`render.yaml` はシンガポールリージョンの Background Worker 1 台、`python bot.py` の起動、`/var/data` の 1 GB Persistent Disk を設定します。SQLite の DB は `DATABASE_PATH=/var/data/econobot.db` に保存されるため、再デプロイ後も残高・取引履歴・住所マスタが消えません。Persistent Disk を使う Background Worker は有料プランが必要です。
+`render.yaml` はシンガポールリージョンの無料 Web Service 1 台と、`python bot.py` の起動を設定します。無料 Web Service は 15 分間の着信がないと停止するため、デプロイ後に UptimeRobot 等から `https://<Renderサービス名>.onrender.com/health` を **5 分間隔**で監視してください。
 
-住所マスタを使う場合は、初回デプロイ後に Render Shell で Excel ファイルを用意して次を一度だけ実行してください。
+> 注意: 無料 Web Service には永続ディスクがありません。SQLite の DB は再デプロイ・再起動・スリープで消えます。本番データを保持するには、有料の永続ディスクか外部データベースへの移行が必要です。
+
+住所マスタを使う場合は、初回デプロイ前にローカルで Excel ファイルを取り込んでから DB を別途永続化する必要があります。無料 Render のローカル SQLite は保持されません。
 
 ```bash
 python -m data.import_addresses /path/to/000925835.xlsx
