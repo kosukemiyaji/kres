@@ -1,0 +1,21 @@
+services:
+  - type: worker
+    name: kres-discord-bot
+    runtime: python
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    maxShutdownDelaySeconds: 30
+    disk:
+      name: kres-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DATABASE_PATH
+        value: /var/data/econobot.db
+      - key: PYTHON_VERSION
+        value: 3.13.5
