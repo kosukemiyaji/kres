@@ -84,6 +84,24 @@ def import_addresses(xlsx_path: str):
     print(f"取り込み完了: 都道府県・市区町村 {inserted} 件 + 政令指定都市の区 {ward_inserted} 件 -> {DB_PATH}")
 
 
+def ensure_addresses_imported(xlsx_path: str) -> bool:
+    """住所マスタが空のときだけ Excel から初期投入する。"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        with open(SCHEMA_PATH, encoding="utf-8") as f:
+            conn.executescript(f.read())
+        exists = conn.execute("SELECT 1 FROM addresses LIMIT 1").fetchone() is not None
+    finally:
+        conn.close()
+
+    if exists:
+        return False
+
+    import_addresses(xlsx_path)
+    return True
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("使い方: python -m data.import_addresses <xlsxファイルパス>")

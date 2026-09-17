@@ -8,12 +8,14 @@ DBへの接続と各Cogのロードを行い、discord.py のBotを起動する�
 import asyncio
 import logging
 import os
+from pathlib import Path
 
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from db.database import Database
+from data.import_addresses import ensure_addresses_imported
 
 load_dotenv()
 
@@ -29,6 +31,7 @@ COGS = [
     "cogs.shop",
     "cogs.ledger",
 ]
+ADDRESS_SOURCE_PATH = Path(__file__).parent / "data" / "000925835.xlsx"
 
 
 async def handle_health_check(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -64,6 +67,11 @@ class EconoBot(commands.Bot):
         self.db = Database()
 
     async def setup_hook(self):
+        if ADDRESS_SOURCE_PATH.is_file():
+            if ensure_addresses_imported(str(ADDRESS_SOURCE_PATH)):
+                logging.info("住所マスタを初期投入しました")
+        else:
+            logging.warning("住所マスタの Excel が見つかりません: %s", ADDRESS_SOURCE_PATH)
         await self.db.connect()
         for cog in COGS:
             await self.load_extension(cog)
