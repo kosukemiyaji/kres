@@ -7,7 +7,6 @@ services:
     numInstances: 1
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
-    maxShutdownDelaySeconds: 30
     disk:
       name: kres-data
       mountPath: /var/data
