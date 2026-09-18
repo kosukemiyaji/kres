@@ -31,7 +31,12 @@ COGS = [
     "cogs.shop",
     "cogs.ledger",
 ]
-ADDRESS_SOURCE_PATH = Path(__file__).parent / "data" / "000925835.xlsx"
+PROJECT_ROOT = Path(__file__).parent
+# ユーザーがプロジェクト直下に置く場合と、data/ に整理して置く場合の両方に対応する。
+ADDRESS_SOURCE_PATHS = (
+    PROJECT_ROOT / "000925835.xlsx",
+    PROJECT_ROOT / "data" / "000925835.xlsx",
+)
 
 
 async def handle_health_check(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -67,11 +72,12 @@ class EconoBot(commands.Bot):
         self.db = Database()
 
     async def setup_hook(self):
-        if ADDRESS_SOURCE_PATH.is_file():
-            if ensure_addresses_imported(str(ADDRESS_SOURCE_PATH)):
+        address_source = next((path for path in ADDRESS_SOURCE_PATHS if path.is_file()), None)
+        if address_source:
+            if ensure_addresses_imported(str(address_source)):
                 logging.info("住所マスタを初期投入しました")
         else:
-            logging.warning("住所マスタの Excel が見つかりません: %s", ADDRESS_SOURCE_PATH)
+            logging.warning("住所マスタの Excel が見つかりません: %s", ADDRESS_SOURCE_PATHS)
         await self.db.connect()
         for cog in COGS:
             await self.load_extension(cog)
