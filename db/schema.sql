@@ -46,7 +46,14 @@ CREATE TABLE IF NOT EXISTS role_salaries (
     amount          INTEGER NOT NULL,               -- 1回の支給額
     interval_min    INTEGER NOT NULL,                -- 支給間隔（分）
     pay_from        TEXT NOT NULL DEFAULT 'system',  -- 'system' or 'company:<company_id>'
+    last_paid_at    TEXT,                            -- 最終支給時刻（ISO8601）
     PRIMARY KEY (guild_id, role_id)
+);
+
+-- 給与設定を変更できるロール（サーバーごとに1つ）
+CREATE TABLE IF NOT EXISTS salary_manager_roles (
+    guild_id        INTEGER PRIMARY KEY,
+    role_id         INTEGER NOT NULL
 );
 
 -- ---------------------------------------------------------

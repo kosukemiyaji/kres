@@ -22,6 +22,21 @@ WORK_MIN_REWARD = 50
 WORK_MAX_REWARD = 200
 
 
+async def has_salary_manager_permission(interaction: discord.Interaction) -> bool:
+    """給与設定担当ロール、未設定なら Discord 管理者だけを許可する。"""
+    if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+        return False
+
+    cur = await interaction.client.db.conn.execute(  # type: ignore[attr-defined]
+        "SELECT role_id FROM salary_manager_roles WHERE guild_id = ?",
+        (interaction.guild_id,),
+    )
+    manager = await cur.fetchone()
+    if manager is None:
+        return interaction.user.guild_permissions.administrator
+    return any(role.id == manager["role_id"] for role in interaction.user.roles)
+
+
 class EconomyCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -96,9 +111,12 @@ class EconomyCog(commands.Cog):
 
     @salary_group.command(name="set", description="ロールに給料を設定します")
     @app_commands.describe(role="対象ロール", amount="1回の支給額", interval_min="支給間隔（分）")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(has_salary_manager_permission)
     async def salary_set(self, interaction: discord.Interaction, role: discord.Role,
                           amount: int, interval_min: int):
+        if amount <= 0 or interval_min <= 0:
+            await interaction.response.send_message("金額と支給間隔は1以上で指定してください。", ephemeral=True)
+            return
         await self.db.conn.execute(
             "INSERT INTO role_salaries (guild_id, role_id, amount, interval_min) "
             "VALUES (?, ?, ?, ?) "
@@ -109,6 +127,31 @@ class EconomyCog(commands.Cog):
         await interaction.response.send_message(
             f"ロール **{role.name}** の保持者に {interval_min}分ごとに {amount}コインを支給するよう設定しました。"
         )
+
+    @salary_group.command(name="manager_role", description="給与設定を変更できるロールを指定します（Discord管理者専用）")
+    @app_commands.describe(role="給与設定を変更できるロール")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def salary_manager_role(self, interaction: discord.Interaction, role: discord.Role):
+        await self.db.conn.execute(
+            "INSERT INTO salary_manager_roles (guild_id, role_id) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET role_id=excluded.role_id",
+            (interaction.guild_id, role.id),
+        )
+        await self.db.conn.commit()
+        await interaction.response.send_message(
+            f"給与設定の変更権限を **{role.name}** ロールに設定しました。", ephemeral=True
+        )
+
+    @salary_set.error
+    async def salary_set_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CheckFailure):
+            message = "給与設定を変更するには、給与設定担当ロール（未設定の場合はDiscord管理者権限）が必要です。"
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+            return
+        raise error
 
     # ------------------------------------------------------
     # 定期実行：ロール給料の自動支給
@@ -127,10 +170,11 @@ class EconomyCog(commands.Cog):
             if role is None:
                 continue
 
-            # interval_min分に1回だけ実行されるよう、現在時刻を interval で割った余りが0のときのみ実行
-            # （簡易実装。厳密な個人ごとの最終支給時刻を管理する場合は role_salaries に last_paid_at を追加する）
-            if now.minute % max(setting["interval_min"], 1) != 0:
-                continue
+            if setting["last_paid_at"]:
+                last_paid_at = datetime.datetime.fromisoformat(setting["last_paid_at"])
+                elapsed_minutes = (now - last_paid_at).total_seconds() / 60
+                if elapsed_minutes < setting["interval_min"]:
+                    continue
 
             for member in role.members:
                 if member.bot:
@@ -140,6 +184,11 @@ class EconomyCog(commands.Cog):
                     setting["amount"], category="salary",
                     memo=f"ロール給料: {role.name}"
                 )
+            await self.db.conn.execute(
+                "UPDATE role_salaries SET last_paid_at = ? WHERE guild_id = ? AND role_id = ?",
+                (now.isoformat(), setting["guild_id"], setting["role_id"]),
+            )
+            await self.db.conn.commit()
 
     @role_salary_loop.before_loop
     async def before_role_salary_loop(self):

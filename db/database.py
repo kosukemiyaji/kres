@@ -40,6 +40,10 @@ class Database:
         await self._conn.execute("PRAGMA foreign_keys = ON;")
         with open(SCHEMA_PATH, encoding="utf-8") as f:
             await self._conn.executescript(f.read())
+        cur = await self._conn.execute("PRAGMA table_info(role_salaries)")
+        columns = {row["name"] for row in await cur.fetchall()}
+        if "last_paid_at" not in columns:
+            await self._conn.execute("ALTER TABLE role_salaries ADD COLUMN last_paid_at TEXT")
         await self._conn.commit()
 
     async def close(self):

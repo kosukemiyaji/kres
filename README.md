@@ -81,6 +81,7 @@ python -m data.import_addresses /path/to/000925835.xlsx
 | `/balance [user]` | 所持コイン確認 |
 | `/pay <user> <amount>` | 個人間送金 |
 | `/salary set <role> <amount> <interval_min>` | ロール給料の設定（管理者） |
+| `/salary manager_role <role>` | 給与設定を変更できるロールを指定（Discord管理者のみ） |
 | `/company create <name> <capital>` | 出資して会社設立 |
 | `/company hire <company_id> <user> <position> <salary> <interval_min>` | 従業員雇用 |
 | `/company info <company_id>` | 会社の残高・従業員一覧 |
@@ -89,6 +90,10 @@ python -m data.import_addresses /path/to/000925835.xlsx
 | `/shop buy <item_id>` | 購入（消費） |
 | `/statement [user]` | 個人の収支明細 |
 | `/company_statement <company_id>` | 法人の収支明細 |
+
+### ロール給料の権限設定
+
+Discord の管理者権限を持つ人が、最初に `/salary manager_role role:<給与管理ロール>` を実行します。その後は、指定されたロールを持つ人だけが `/salary set` で給料額・支給間隔を変更できます。給与は設定した間隔ごとにロール所持者へ支給されます。
 
 ## 4. 実行方法
 
